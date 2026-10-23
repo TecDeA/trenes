@@ -1,0 +1,18 @@
+{
+  "name": "Simulador de Trenes · Física en movimiento",
+  "short_name": "Trenes",
+  "description": "Laboratorio visual de física: encuentro frontal y persecución entre trenes, con simulación, gráfica x(t) y cálculo del punto de encuentro.",
+  "id": "/trenes/",
+  "scope": "/trenes/",
+  "start_url": "/trenes/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "es",
+  "background_color": "#f7f3e9",
+  "theme_color": "#17212b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

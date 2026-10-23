@@ -1,0 +1,1460 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Simulador de Trenes · Física en movimiento</title>
+  <meta name="description" content="Laboratorio visual de física: encuentro frontal y persecución entre trenes, con simulación, gráfica x(t) y cálculo del punto de encuentro.">
+  <meta name="theme-color" content="#17212b">
+
+  <!-- PWA · rutas relativas: el SW y el manifest quedan acotados a /trenes/
+       y no interfieren con la instalación del portal https://tecdea.github.io -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Trenes">
+
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #58707d;
+      --paper: #f7f3e9;
+      --teal: #116466;
+      --coral: #f26b50;
+      --gold: #f4b942;
+      --rail: #27343b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "DM Sans", sans-serif;
+      color: var(--ink);
+      overflow-x: hidden;
+    }
+
+    .app-shell {
+      min-height: calc(100 * min(var(--vh, 1vh), 1vh));
+      width: 100%;
+      background:
+        radial-gradient(circle at 8% 10%, rgba(244, 185, 66, .25), transparent 28rem),
+        radial-gradient(circle at 95% 84%, rgba(17, 100, 102, .18), transparent 32rem),
+        #f7f3e9;
+    }
+
+    .display-font { font-family: "Fraunces", serif; }
+
+    .paper-grain {
+      background-image:
+        linear-gradient(rgba(255,255,255,.52), rgba(255,255,255,.52)),
+        radial-gradient(rgba(23,33,43,.06) .65px, transparent .65px);
+      background-size: auto, 9px 9px;
+    }
+
+    .control-card {
+      box-shadow: 0 18px 46px rgba(23, 33, 43, .10);
+    }
+
+    .mode-choice {
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+    }
+
+    .mode-choice:hover { transform: translateY(-2px); }
+
+    .mode-choice.active {
+      border-color: #116466;
+      background: #e5f2ee;
+      box-shadow: 0 8px 22px rgba(17,100,102,.12);
+    }
+
+    .range-input {
+      appearance: none;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(to right, #116466 var(--range-progress, 50%), #d8ded9 var(--range-progress, 50%));
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .range-input::-webkit-slider-thumb {
+      appearance: none;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: #f26b50;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 8px rgba(23,33,43,.3);
+    }
+
+    .range-input::-moz-range-thumb {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #f26b50;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 8px rgba(23,33,43,.3);
+    }
+
+    /* ---------- Canvas de la simulación ---------- */
+    .sim-canvas {
+      display: block;
+      width: 100%;
+      border-radius: 12px;
+    }
+    #scene { height: clamp(300px, 42vh, 460px); }
+    #graph { height: clamp(170px, 24vh, 240px); }
+
+    /* ---------- Filas de datos ---------- */
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      padding: 8px 12px;
+      background: #f4f2ea;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .stat-row .k { color: var(--muted); }
+    .stat-row .v {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: var(--ink);
+    }
+    .stat-row.a .v { color: #a43f33; }
+    .stat-row.b .v { color: #0b595c; }
+    .stat-row.hi .v { color: #116466; }
+    .stat-row.gold .v { color: #a4760f; }
+    .stat-row.live { background: #ecefe4; }
+    .stat-row.live .v .dot {
+      display: inline-block;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #37a06a;
+      margin-right: 6px;
+      vertical-align: middle;
+      animation: livePulse 1.4s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .35; }
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #8a969e;
+      margin: 14px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #d9d5c8;
+    }
+
+    /* ---------- Modal de ayuda ---------- */
+    .modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .modal[hidden] { display: none; }
+    .modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(23, 33, 43, .45);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }
+    .modal-content {
+      position: relative;
+      max-width: 600px; width: 100%;
+      max-height: 86vh; overflow: hidden;
+      display: flex; flex-direction: column;
+      background: #fdfbf4;
+      border: 1px solid #d9d5c8;
+      border-radius: 22px;
+      box-shadow: 0 24px 60px rgba(23,33,43,.28);
+      animation: pop .22s ease-out;
+    }
+    @keyframes pop {
+      from { opacity: 0; transform: translateY(10px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .modal-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e3ded0;
+    }
+    .modal-head h2 { margin: 0; font-family: "Fraunces", serif; font-size: 21px; font-weight: 700; }
+    .modal-close {
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      border: 1px solid #d9d5c8;
+      background: #f1ede1;
+      color: var(--ink);
+      font-size: 1.4rem; line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: .15s;
+    }
+    .modal-close:hover { background: #f7d7cf; border-color: #a43f33; color: #a43f33; }
+    .modal-body { padding: 20px 22px; overflow-y: auto; font-size: 14px; line-height: 1.6; }
+    .modal-body h3 {
+      margin: 18px 0 8px;
+      font-size: 12px; font-weight: 700;
+      letter-spacing: .13em; text-transform: uppercase;
+      color: #116466;
+    }
+    .modal-body h3:first-of-type { margin-top: 0; }
+    .modal-body ul { margin: 6px 0 12px; padding-left: 20px; }
+    .modal-body li { margin-bottom: 7px; color: #41555d; }
+    .modal-body li strong { color: var(--ink); }
+    .modal-body p { margin: 0 0 10px; color: #41555d; }
+    .modal-body code {
+      background: #e5f2ee; color: #0b595c;
+      padding: 1px 6px; border-radius: 6px;
+      font-size: .92em; font-family: ui-monospace, monospace;
+    }
+    .modal-body kbd {
+      background: #f1ede1; border: 1px solid #d9d5c8;
+      color: var(--ink);
+      padding: 1px 7px; border-radius: 6px;
+      font-size: .82em; font-family: ui-monospace, monospace;
+      box-shadow: 0 1px 0 rgba(23,33,43,.15);
+    }
+    .modal-body .lead {
+      color: #41555d; font-weight: 600;
+      margin: 0 0 16px; font-size: 15px;
+      padding: 12px 14px;
+      background: #f8efdc;
+      border-left: 3px solid var(--gold);
+      border-radius: 10px;
+    }
+
+    /* ---------- Toast de actualización PWA ---------- */
+    .toast {
+      position: fixed;
+      bottom: 18px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 1200;
+      background: #fdfbf4;
+      border: 1px solid #d9d5c8;
+      border-radius: 14px;
+      padding: 12px 18px;
+      display: flex; gap: 14px; align-items: center;
+      box-shadow: 0 14px 34px rgba(23,33,43,.22);
+      font-size: 14px; font-weight: 600; color: var(--ink);
+      max-width: 90vw;
+    }
+    .toast[hidden] { display: none; }
+    .toast button {
+      padding: 7px 14px; border-radius: 10px; border: 0; cursor: pointer;
+      background: var(--teal); color: #fff; font-weight: 700; font-family: inherit;
+    }
+
+    /* ---------- Chip de versión (tomada del SW) ---------- */
+    .ver-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      padding: 3px 9px 3px 7px;
+      border-radius: 999px;
+      background: rgba(55, 160, 106, .14);
+      border: 1px solid rgba(55, 160, 106, .45);
+      color: #1e6f42;
+      vertical-align: middle;
+      text-transform: uppercase;
+      margin-left: 8px;
+      transform: translateY(-1px);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .ver-chip::before {
+      content: "";
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #37a06a;
+      box-shadow: 0 0 6px rgba(55,160,106,.8);
+    }
+    .ver-chip.loading { opacity: .55; }
+    .ver-chip.loading::before { animation: livePulse 1.2s ease-in-out infinite; }
+    .ver-chip.error {
+      background: rgba(242, 107, 80, .14);
+      border-color: rgba(242, 107, 80, .45);
+      color: #a43f33;
+    }
+    .ver-chip.error::before {
+      background: var(--coral);
+      box-shadow: 0 0 6px rgba(242,107,80,.8);
+    }
+
+    .reveal { animation: rise .6s both; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      #scene { height: 280px; }
+      #graph { height: 190px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body style="background: #f7f3e9;">
+  <div class="app-shell">
+   <header class="w-full px-5 pt-6 sm:px-8 lg:px-12 lg:pt-9">
+    <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
+     <div class="flex items-center gap-3">
+      <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#17212b] text-[#f7f3e9] shadow-lg">
+       <i data-lucide="train-front" aria-hidden="true" class="h-6 w-6"></i>
+      </div>
+      <div>
+       <p class="text-sm font-bold uppercase tracking-[0.16em]" style="color: rgb(23, 33, 43);">Física en movimiento<span class="ver-chip loading" id="verChip" title="Versión del service worker">…</span></p>
+       <p class="text-xs" style="color: rgb(88, 112, 125);">Laboratorio visual</p>
+      </div>
+     </div>
+     <div class="hidden items-center gap-2 sm:flex">
+      <div class="hidden items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold md:flex" style="background: rgb(23, 33, 43); color: rgb(247, 243, 233);">
+       <i data-lucide="atom" aria-hidden="true" class="h-4 w-4"></i> <span style="color: rgb(247, 243, 233);">Movimiento relativo</span>
+      </div>
+      <button type="button" id="helpBtn" class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5" style="background: rgb(244, 185, 66); color: rgb(23, 33, 43);" aria-haspopup="dialog" aria-controls="helpModal">
+       <i data-lucide="circle-help" aria-hidden="true" class="h-4 w-4"></i> Ayuda
+      </button>
+     </div>
+    </div>
+   </header>
+   <main class="w-full px-5 pb-10 pt-9 sm:px-8 lg:px-12">
+    <section class="mx-auto max-w-7xl">
+     <div class="mb-7 max-w-3xl reveal">
+      <p class="mb-3 text-sm font-bold uppercase tracking-[0.17em]" style="color: rgb(17, 100, 102);">EXPERIMENTO INTERACTIVO</p>
+      <h1 class="display-font max-w-3xl leading-[1.04]" style="color: rgb(23, 33, 43); font-weight: 700; font-size: 32px;">¿Cuándo se encontrarán los trenes?</h1>
+      <p class="mt-4 max-w-2xl text-lg leading-relaxed" style="color: rgb(88, 112, 125);">Elige un encuentro frontal o una persecución, ajusta la distancia y las velocidades, y descubre paso a paso cómo se resuelven los problemas clásicos de trenes.</p>
+     </div>
+
+     <div class="grid gap-7 xl:grid-cols-[minmax(0,1fr)_390px]">
+
+      <!-- ======== Columna principal: escena + gráfica ======== -->
+      <div class="grid gap-5 content-start reveal" style="animation-delay:.08s">
+       <div class="overflow-hidden rounded-[30px] border border-[#b9c9c2] bg-white shadow-[0_20px_50px_rgba(23,33,43,.12)]">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#c6d5d0] bg-[#eff5ef] px-5 py-4">
+         <div class="flex items-center gap-3">
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-[#116466] text-white"> <i data-lucide="map" aria-hidden="true" class="h-4 w-4"></i> </span>
+          <div>
+           <h2 class="font-bold" style="color: rgb(23, 33, 43); font-size: 18px;">Escena de la vía</h2>
+           <p class="text-sm" style="color: rgb(88, 112, 125);">Movimiento de los trenes sobre una escala en kilómetros.</p>
+          </div>
+         </div>
+         <span id="status" class="rounded-full px-3 py-1.5 text-sm font-semibold" style="background: rgb(224, 232, 227); color: rgb(65, 85, 93);">Listo para salir</span>
+        </div>
+        <div class="p-4 sm:p-5" style="background: linear-gradient(180deg, #cde9ec 0%, #e9f4e8 100%);">
+         <canvas id="scene" class="sim-canvas rounded-2xl border border-[#b9c9c2] shadow-inner" aria-label="Simulación espacial del encuentro de trenes"></canvas>
+        </div>
+       </div>
+
+       <div class="overflow-hidden rounded-[30px] border border-[#b9c9c2] bg-white shadow-[0_20px_50px_rgba(23,33,43,.12)]">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#c6d5d0] bg-[#eff5ef] px-5 py-4">
+         <div class="flex items-center gap-3">
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-[#be8716] text-white"> <i data-lucide="chart-line" aria-hidden="true" class="h-4 w-4"></i> </span>
+          <div>
+           <h2 class="font-bold" style="color: rgb(23, 33, 43); font-size: 18px;">Gráfica posición frente a tiempo</h2>
+           <p class="text-sm" style="color: rgb(88, 112, 125);">x(t) de cada tren, con el punto de encuentro marcado.</p>
+          </div>
+         </div>
+        </div>
+        <div class="p-4 sm:p-5" style="background: #fbfcf8;">
+         <canvas id="graph" class="sim-canvas rounded-2xl border border-[#e3ded0]" aria-label="Gráfica de posición frente a tiempo"></canvas>
+        </div>
+       </div>
+      </div>
+
+      <!-- ======== Columna lateral: parámetros + resultados ======== -->
+      <div class="grid gap-5 content-start reveal" style="animation-delay:.16s">
+
+       <aside class="control-card paper-grain rounded-[28px] border border-[#d9d5c8] p-5 sm:p-6">
+        <div class="mb-5 flex items-center justify-between">
+         <h2 class="font-bold" style="color: rgb(23, 33, 43); font-size: 20px;">Configura el problema</h2><i data-lucide="sliders-horizontal" aria-hidden="true" class="h-5 w-5 text-[#116466]"></i>
+        </div>
+
+        <div class="grid gap-3">
+         <button type="button" id="headOnMode" class="mode-choice active flex w-full items-start gap-3 rounded-2xl border-2 border-[#d6ddd8] p-4 text-left" aria-pressed="true"> <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f7d7cf] text-[#a43f33]"> <i data-lucide="move-horizontal" aria-hidden="true" class="h-5 w-5"></i> </span> <span> <span class="block font-bold" style="color: rgb(23, 33, 43); font-size: 16px;">Encuentro frontal</span> <span class="mt-1 block text-sm leading-snug" style="color: rgb(88, 112, 125);">Dos trenes parten de puntos distintos y viajan uno hacia el otro.</span> </span> </button>
+         <button type="button" id="chaseMode" class="mode-choice flex w-full items-start gap-3 rounded-2xl border-2 border-[#d6ddd8] bg-white/50 p-4 text-left" aria-pressed="false"> <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#cce7e3] text-[#0b595c]"> <i data-lucide="fast-forward" aria-hidden="true" class="h-5 w-5"></i> </span> <span> <span class="block font-bold" style="color: rgb(23, 33, 43); font-size: 16px;">Persecución</span> <span class="mt-1 block text-sm leading-snug" style="color: rgb(88, 112, 125);">El tren A intenta alcanzar al tren B, que ya viaja delante.</span> </span> </button>
+        </div>
+
+        <div class="my-6 border-t border-[#d9d5c8]"></div>
+
+        <div class="space-y-6">
+         <div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+           <label class="text-sm font-bold" for="distance" style="color: rgb(23, 33, 43);">Distancia inicial</label> <output id="distanceValue" class="rounded-full bg-[#17212b] px-3 py-1 text-sm font-bold text-white"></output>
+          </div>
+          <input id="distance" class="range-input" type="range" min="30" max="300" step="10" value="120">
+         </div>
+         <div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+           <label class="text-sm font-bold" for="speedA" style="color: rgb(23, 33, 43);">Velocidad del tren A</label> <output id="speedAValue" class="rounded-full bg-[#f7d7cf] px-3 py-1 text-sm font-bold text-[#a43f33]"></output>
+          </div>
+          <input id="speedA" class="range-input" type="range" min="20" max="180" step="5" value="90">
+         </div>
+         <div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+           <label class="text-sm font-bold" for="speedB" style="color: rgb(23, 33, 43);">Velocidad del tren B</label> <output id="speedBValue" class="rounded-full bg-[#cce7e3] px-3 py-1 text-sm font-bold text-[#0b595c]"></output>
+          </div>
+          <input id="speedB" class="range-input" type="range" min="20" max="180" step="5" value="60">
+         </div>
+         <div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+           <label class="text-sm font-bold" for="playSpeed" style="color: rgb(23, 33, 43);">Velocidad de reproducción</label> <output id="playSpeedValue" class="rounded-full bg-[#e5f2ee] px-3 py-1 text-sm font-bold text-[#0b595c]"></output>
+          </div>
+          <input id="playSpeed" class="range-input" type="range" min="0.25" max="3" step="0.25" value="1">
+         </div>
+        </div>
+
+        <div class="mt-7 grid grid-cols-2 gap-3">
+         <button id="playButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold shadow-md transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#116466]/25" style="background: rgb(17, 100, 102); color: rgb(255, 255, 255);"> <i data-lucide="play" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(255, 255, 255); font-size: 15px;">Iniciar</span> </button>
+         <button id="resetButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#17212b]/15 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <i data-lucide="rotate-ccw" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(23, 33, 43); font-size: 15px;">Reiniciar</span> </button>
+         <button id="stepBackButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <i data-lucide="chevron-left" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(23, 33, 43); font-size: 15px;">Paso atrás</span> </button>
+         <button id="stepButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <span style="color: rgb(23, 33, 43); font-size: 15px;">Paso adelante</span><i data-lucide="chevron-right" aria-hidden="true" class="h-4 w-4"></i> </button>
+        </div>
+       </aside>
+
+       <aside class="control-card paper-grain rounded-[28px] border border-[#d9d5c8] p-5 sm:p-6">
+        <div class="mb-4 flex items-center justify-between">
+         <h2 class="font-bold" style="color: rgb(23, 33, 43); font-size: 20px;">Resultados</h2><i data-lucide="clipboard-list" aria-hidden="true" class="h-5 w-5 text-[#116466]"></i>
+        </div>
+
+        <div class="grid gap-2">
+         <div class="section-label" style="margin-top:0">Encuentro</div>
+         <div class="stat-row hi"><span class="k">Tiempo hasta el encuentro</span><span class="v" id="rTime">—</span></div>
+         <div class="stat-row gold"><span class="k">Punto de encuentro · desde A</span><span class="v" id="rPoint">—</span></div>
+         <div class="stat-row"><span class="k">Velocidad relativa</span><span class="v" id="rRel">—</span></div>
+
+         <div class="section-label">Estado actual <span style="font-weight:600;color:#37a06a">· en vivo</span></div>
+         <div class="stat-row live"><span class="k"><span class="dot"></span>Tiempo de simulación</span><span class="v" id="rNow">0.00 s</span></div>
+         <div class="stat-row a live"><span class="k">Posición del tren A</span><span class="v" id="rXA">—</span></div>
+         <div class="stat-row b live"><span class="k">Posición del tren B</span><span class="v" id="rXB">—</span></div>
+         <div class="stat-row live"><span class="k">Distancia entre trenes</span><span class="v" id="rDist">—</span></div>
+        </div>
+
+        <div class="mt-4 rounded-2xl border border-[#d6ddd8] bg-[#eef5f0] px-4 py-3">
+         <div class="flex gap-3">
+          <i data-lucide="lightbulb" aria-hidden="true" class="mt-0.5 h-5 w-5 shrink-0 text-[#be8716]"></i>
+          <p id="insight" class="text-sm leading-relaxed text-[#41555d]"></p>
+         </div>
+        </div>
+
+        <p class="mt-4 border-t border-[#d9d5c8] pt-3 text-xs leading-relaxed" style="color: rgb(88, 112, 125);">
+         <strong style="color: rgb(23, 33, 43);">Fórmulas.</strong>
+         Encuentro frontal: <code class="rounded bg-[#e5f2ee] px-1.5 py-0.5 text-[#0b595c]">t = D / (vA + vB)</code> ·
+         Persecución: <code class="rounded bg-[#e5f2ee] px-1.5 py-0.5 text-[#0b595c]">t = D / (vA − vB)</code>
+         (solo si vA &gt; vB). El punto de encuentro, medido desde A: <code class="rounded bg-[#e5f2ee] px-1.5 py-0.5 text-[#0b595c]">x = vA · t</code>.
+        </p>
+       </aside>
+      </div>
+     </div>
+    </section>
+   </main>
+  </div>
+
+  <!-- ===================== Modal de ayuda ===================== -->
+  <div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+   <div class="modal-backdrop" id="modalBackdrop"></div>
+   <div class="modal-content">
+    <header class="modal-head">
+     <h2 id="helpTitle">Cómo usar el simulador</h2>
+     <button class="modal-close" id="modalClose" aria-label="Cerrar">×</button>
+    </header>
+    <div class="modal-body">
+     <p class="lead">Dos trenes, una vía: elige si viajan uno hacia el otro (encuentro frontal) o si el tren A persigue al tren B, y descubre cuándo y dónde se encuentran.</p>
+
+     <h3>Parámetros</h3>
+     <ul>
+      <li><strong>Encuentro frontal / Persecución:</strong> en el encuentro frontal las velocidades se suman; en la persecución importa la diferencia.</li>
+      <li><strong>Distancia inicial (D):</strong> separación entre los trenes en el instante inicial, de 30 a 300 km.</li>
+      <li><strong>Velocidades (vA, vB):</strong> constantes, de 20 a 180 km/h. El tren A parte del origen; el tren B parte del punto D.</li>
+     </ul>
+
+     <h3>Controles de reproducción</h3>
+     <ul>
+      <li><strong>Iniciar / Pausar / Reanudar:</strong> controla la animación. El botón <em>Reiniciar</em> se activa al finalizar.</li>
+      <li><strong>Paso adelante / Paso atrás:</strong> avanza o retrocede en incrementos fijos de 0,1 s, pausando la reproducción.</li>
+      <li><strong>Velocidad de reproducción:</strong> multiplica el tiempo simulado para revisar con calma o acelerar (0,25× a 3×).</li>
+     </ul>
+
+     <h3>Teclas</h3>
+     <ul>
+      <li><kbd>Espacio</kbd> o <kbd>S</kbd>: inicia, pausa o reanuda.</li>
+      <li><kbd>F</kbd>: paso adelante de 0,1 s. <kbd>D</kbd>: paso atrás.</li>
+      <li><kbd>R</kbd>: reinicia y reanuda automáticamente (al finalizar).</li>
+      <li><kbd>H</kbd>: abre o cierra esta ayuda.</li>
+     </ul>
+
+     <h3>Lectura de la simulación</h3>
+     <p>La <strong>escena de la vía</strong> muestra los trenes sobre una regla en kilómetros, con la línea discontinua dorada marcando el punto de encuentro. La <strong>gráfica x(t)</strong> representa la posición de cada tren frente al tiempo: el cruce de las dos rectas es el instante del encuentro.</p>
+
+     <h3>Física</h3>
+     <p>Con posiciones constantes: <code>xA(t) = vA · t</code> y <code>xB(t) = D ∓ vB · t</code> (− en encuentro frontal, + en persecución). Igualando posiciones:</p>
+     <p style="text-align:center">
+      <code>Encuentro frontal: t = D / (vA + vB)</code> &nbsp;·&nbsp; <code>Persecución: t = D / (vA − vB)</code>
+     </p>
+     <p>En la persecución, si <code>vA ≤ vB</code> la distancia no se cierra y los trenes no se encontrarán. El punto de encuentro medido desde la posición de partida de A es <code>x = vA · t</code>.</p>
+
+     <h3>Instalar como aplicación (PWA)</h3>
+     <p>En Chrome/Edge, pulsa <kbd>⋮</kbd> → <em>Instalar</em>. En iOS Safari, <em>Compartir</em> → <em>Añadir a inicio</em>. La app funciona sin conexión una vez instalada y su instalación es independiente de la del portal principal.</p>
+    </div>
+   </div>
+  </div>
+
+  <!-- ===================== Toast de actualización PWA ===================== -->
+  <div class="toast" id="swToast" hidden>
+   <span>Hay una nueva versión disponible.</span>
+   <button id="swReload" type="button">Recargar</button>
+  </div>
+
+  <script>
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+
+      const $ = (id) => document.getElementById(id);
+
+      /* =======================================================
+         Referencias del DOM
+         ======================================================= */
+      const els = {
+        headOnMode: $('headOnMode'), chaseMode: $('chaseMode'),
+        distance: $('distance'), speedA: $('speedA'), speedB: $('speedB'),
+        distanceValue: $('distanceValue'), speedAValue: $('speedAValue'),
+        speedBValue: $('speedBValue'),
+        playSpeed: $('playSpeed'), playSpeedValue: $('playSpeedValue'),
+        play: $('playButton'), step: $('stepButton'),
+        stepBack: $('stepBackButton'), reset: $('resetButton'),
+        scene: $('scene'), graph: $('graph'),
+        status: $('status'), insight: $('insight'),
+        rTime: $('rTime'), rPoint: $('rPoint'), rRel: $('rRel'),
+        rNow: $('rNow'), rXA: $('rXA'), rXB: $('rXB'), rDist: $('rDist')
+      };
+
+      /* =======================================================
+         Estado
+         ======================================================= */
+      const S = {
+        mode: 'headOn',       // 'headOn' | 'chase'
+        t: 0,                 // tiempo de simulación en segundos
+        playing: false,
+        speed: 1,             // multiplicador de reproducción
+        last: null,
+        raf: null,
+        p: null,              // parámetros leídos
+        D: null               // derivados (encuentro, duración…)
+      };
+      const STEP_DT = 0.1;
+
+      /* Paleta de los canvas (misma de la app) */
+      const C = {
+        skyTop: '#cde9ec', skyBottom: '#e9f4e8',
+        grass: '#7caa62', soil: '#5d8250',
+        rail: '#50656b', sleeper: 'rgba(234,218,181,.9)',
+        grid: 'rgba(23,33,43,.08)', gridLabel: '#58707d', axis: '#8a9aa5',
+        ink: '#17212b', muted: '#58707d',
+        a: '#f26b50', aDeep: '#9d3c35',
+        b: '#116466', bDeep: '#084d50',
+        gold: '#f4b942', goldText: '#a4760f', meet: '#d99a1f',
+        panel: '#ffffff'
+      };
+
+      /* =======================================================
+         Utilidades
+         ======================================================= */
+      function setRangeProgress(input) {
+        const percentage = ((input.value - input.min) / (input.max - input.min)) * 100;
+        input.style.setProperty('--range-progress', percentage + "%");
+      }
+      function fmt(n, d) {
+        if (n === null || n === undefined || !isFinite(n)) return '—';
+        const a = Math.abs(n);
+        if (a >= 1000) return n.toFixed(0);
+        if (a >= 100) return n.toFixed(1);
+        if (a >= 10) return n.toFixed(2);
+        return n.toFixed(d === undefined ? 2 : d);
+      }
+      function fmtSigned(n, d) {
+        if (n === null || n === undefined || !isFinite(n)) return '—';
+        const s = n > 1e-9 ? '+' : (n < -1e-9 ? '−' : '');
+        return s + fmt(Math.abs(n), d);
+      }
+      function fmtTick(v) {
+        if (Math.abs(v) < 1e-9) return '0';
+        if (Math.abs(v) >= 10) return v.toFixed(0);
+        if (Math.abs(v) >= 1) return v.toFixed(1).replace(/\.0$/, '');
+        return v.toFixed(2);
+      }
+      function niceStep(max, target) {
+        if (max <= 0) return 1;
+        const raw = max / target;
+        const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+        const n = raw / pow;
+        let m;
+        if (n <= 1) m = 1;
+        else if (n <= 2) m = 2;
+        else if (n <= 2.5) m = 2.5;
+        else if (n <= 5) m = 5;
+        else m = 10;
+        return m * pow;
+      }
+      function formatHours(hours) {
+        if (hours === null || !isFinite(hours)) return '—';
+        const minutes = Math.round(hours * 60);
+        if (minutes < 60) return minutes + ' min';
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return m ? h + ' h ' + m + ' min' : h + ' h';
+      }
+      function ensureSize(canvas) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        if (w < 4 || h < 4) return { ctx: null, w: 0, h: 0 };
+        const W = Math.max(1, Math.round(w * dpr));
+        const H = Math.max(1, Math.round(h * dpr));
+        if (canvas.width !== W || canvas.height !== H) {
+          canvas.width = W;
+          canvas.height = H;
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { ctx, w, h };
+      }
+
+      /* =======================================================
+         Física · unidades reales: km y horas
+         El reloj de simulación S.t va en segundos; D.hps convierte
+         a horas (horas por segundo simulado) para que el encuentro
+         ocurra siempre en una animación de duración razonable.
+         ======================================================= */
+      function readParams() {
+        return {
+          mode: S.mode,
+          D: parseFloat(els.distance.value),
+          vA: parseFloat(els.speedA.value),
+          vB: parseFloat(els.speedB.value)
+        };
+      }
+
+      function derive(p) {
+        const relative = p.mode === 'headOn' ? p.vA + p.vB : p.vA - p.vB;
+        const canMeet = relative > 1e-9;
+        const tMeet = canMeet ? p.D / relative : null;      // horas
+        const xMeet = canMeet ? p.vA * tMeet : null;        // km desde A
+
+        // Duración de la animación (segundos) y factor horas/segundo
+        let duration, hps;
+        if (canMeet) {
+          duration = Math.max(4, Math.min(12, tMeet * 5));
+          hps = tMeet / duration;
+        } else {
+          // Sin encuentro: la animación dura lo que A tardaría en
+          // recorrer 3/4 de la distancia inicial.
+          duration = Math.max(4, Math.min(12, (p.D / p.vA) * 3));
+          hps = (p.D / p.vA) / duration;
+        }
+        return { relative, canMeet, tMeet, xMeet, duration, hps };
+      }
+
+      // Posiciones en km en el instante S.t (segundos de simulación)
+      function positions() {
+        const p = S.p, th = S.t * S.D.hps;
+        const xA = p.vA * th;
+        const xB = p.mode === 'headOn' ? p.D - p.vB * th : p.D + p.vB * th;
+        return { xA, xB, th };
+      }
+
+      /* =======================================================
+         Estado visual (pill de estado)
+         ======================================================= */
+      const PILLS = {
+        ready:     { bg: 'rgb(224, 232, 227)', color: 'rgb(65, 85, 93)',   text: 'Listo para salir' },
+        running:   { bg: 'rgb(204, 231, 227)', color: 'rgb(11, 89, 92)',   text: 'En marcha' },
+        paused:    { bg: 'rgb(248, 239, 212)', color: 'rgb(128, 88, 13)',  text: 'En pausa' },
+        met:       { bg: 'rgb(232, 245, 231)', color: 'rgb(30, 111, 66)',  text: '¡Se encontraron!' },
+        noMeet:    { bg: 'rgb(247, 215, 207)', color: 'rgb(164, 63, 51)',  text: 'No se alcanzarán' }
+      };
+      function setPill(state) {
+        const p = PILLS[state];
+        els.status.textContent = p.text;
+        els.status.style.background = p.bg;
+        els.status.style.color = p.color;
+      }
+
+      /* =======================================================
+         Dibujo: escena de la vía
+         ======================================================= */
+      function drawScene() {
+        const p = S.p, D = S.D;
+        const { ctx, w, h } = ensureSize(els.scene);
+        if (!ctx) return;
+        ctx.clearRect(0, 0, w, h);
+
+        // Cielo
+        const bg = ctx.createLinearGradient(0, 0, 0, h);
+        bg.addColorStop(0, C.skyTop);
+        bg.addColorStop(1, C.skyBottom);
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, w, h);
+
+        const mL = w < 430 ? 40 : 54;
+        const mR = 24, mT = 42, mB = 74;
+        const trackY = h - mB + 26;
+        // El mundo representado debe incluir el punto de encuentro:
+        // en una persecución puede quedar más allá de la distancia inicial.
+        const worldTop = D.canMeet ? D.xMeet * 1.04 : p.D * 1.06;
+        const scale = (w - mL - mR) / worldTop;   // px por km
+        const X = xKm => mL + xKm * scale;
+
+        // Suelo
+        const gg = ctx.createLinearGradient(0, trackY + 14, 0, h);
+        gg.addColorStop(0, C.grass);
+        gg.addColorStop(1, C.soil);
+        ctx.fillStyle = gg;
+        ctx.fillRect(0, trackY + 14, w, h - trackY - 14);
+
+        // Regla en kilómetros
+        const step = niceStep(worldTop, 7);
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let x = 0; x <= worldTop + 1e-9; x += step) {
+          const px = X(x);
+          if (px > w - mR + 1) break;
+          ctx.strokeStyle = C.axis;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(px, trackY + 20);
+          ctx.lineTo(px, trackY + 25);
+          ctx.stroke();
+          ctx.fillStyle = C.gridLabel;
+          ctx.fillText(fmtTick(x), px, trackY + 28);
+        }
+
+        // Vía: traviesas + dos raíles
+        ctx.strokeStyle = C.sleeper;
+        ctx.lineWidth = 4;
+        for (let px = mL - 8; px <= w - mR + 8; px += 18) {
+          ctx.beginPath();
+          ctx.moveTo(px, trackY + 6);
+          ctx.lineTo(px, trackY + 15);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = C.rail;
+        ctx.lineWidth = 3;
+        [trackY + 4, trackY + 13].forEach(y => {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+          ctx.stroke();
+        });
+
+        const { xA, xB } = positions();
+
+        // Punto de encuentro
+        if (D.canMeet) {
+          const mx = X(D.xMeet);
+          ctx.setLineDash([7, 6]);
+          ctx.strokeStyle = C.meet;
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(mx, mT - 6);
+          ctx.lineTo(mx, trackY + 18);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = '700 ' + (w < 430 ? 10 : 11) + 'px "DM Sans", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillStyle = C.goldText;
+          const labelX = Math.min(Math.max(mx, mL + 78), w - mR - 78);
+          ctx.fillText('Encuentro · ' + fmt(D.xMeet) + ' km', labelX, mT - 9);
+        }
+
+        // Línea de separación entre trenes
+        const sepTop = mT + 16;
+        const xa = Math.min(X(xA), X(xB));
+        const xb = Math.max(X(xA), X(xB));
+        if (xb - xa > 30) {
+          ctx.setLineDash([4, 5]);
+          ctx.strokeStyle = 'rgba(23,33,43,.35)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(xa, sepTop);
+          ctx.lineTo(xb, sepTop);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const label = fmt(Math.abs(xB - xA)) + ' km';
+          ctx.font = '700 11px "DM Sans", sans-serif';
+          const tw = ctx.measureText(label).width + 16;
+          const midX = (xa + xb) / 2;
+          ctx.fillStyle = 'rgba(255,255,255,.92)';
+          ctx.strokeStyle = 'rgba(23,33,43,.15)';
+          ctx.beginPath();
+          ctx.roundRect(midX - tw / 2, sepTop - 11, tw, 22, 11);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#34454b';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label, midX, sepTop);
+        }
+
+        // Marcas de salida
+        [[0, 'rgba(242,107,80,.6)'], [p.D, 'rgba(17,100,102,.6)']].forEach(([x, color]) => {
+          ctx.beginPath();
+          ctx.arc(X(x), trackY + 1, 5, 0, Math.PI * 2);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+
+        // Trenes (delante de la vía); tamaño proporcional a la escena
+        const gapPx = p.D * scale;
+        const trainW = Math.max(26, Math.min(72, gapPx * 0.35));
+        const dirB = p.mode === 'headOn' ? -1 : 1;
+        drawTrain(ctx, X(xA), trackY + 2, 1, C.a, C.aDeep, S.playing, trainW);
+        drawTrain(ctx, X(xB), trackY + 2, dirB, C.b, C.bDeep, S.playing, trainW);
+
+        // Barra de progreso temporal
+        const barY = h - 18;
+        ctx.fillStyle = 'rgba(23,33,43,.12)';
+        ctx.fillRect(mL - 4, barY, w - mR - mL + 8, 5);
+        const prog = D.duration > 0 ? Math.min(1, S.t / D.duration) : 0;
+        const pg = ctx.createLinearGradient(mL, 0, w - mR, 0);
+        pg.addColorStop(0, C.b);
+        pg.addColorStop(1, C.gold);
+        ctx.fillStyle = pg;
+        ctx.fillRect(mL - 4, barY, (w - mR - mL + 8) * prog, 5);
+      }
+
+      // Tren estilizado sobre canvas; x = posición del frontal, dir = 1 derecha / -1 izquierda
+      function drawTrain(ctx, x, trackY, dir, color, deep, moving, bw) {
+        const bh = Math.max(14, bw * 0.42), r = bw * 0.14;
+        ctx.save();
+        ctx.translate(x, trackY);
+        ctx.scale(dir, 1);
+
+        // líneas de movimiento
+        if (moving) {
+          ctx.strokeStyle = 'rgba(23,33,43,.3)';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(-bw - 12, -bh + 8);
+          ctx.lineTo(-bw - 34, -bh + 8);
+          ctx.stroke();
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(-bw - 12, -bh + 18);
+          ctx.lineTo(-bw - 28, -bh + 18);
+          ctx.stroke();
+        }
+
+        // sombra
+        ctx.fillStyle = 'rgba(23,33,43,.18)';
+        ctx.beginPath();
+        ctx.ellipse(-bw / 2, 2, bw / 2, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // morro redondeado
+        ctx.beginPath();
+        ctx.moveTo(-bw + r, -bh);
+        ctx.lineTo(-14, -bh);
+        ctx.quadraticCurveTo(0, -bh, 0, -bh / 2);
+        ctx.quadraticCurveTo(0, 0, -14, 0);
+        ctx.lineTo(-bw + r, 0);
+        ctx.quadraticCurveTo(-bw, 0, -bw, -r);
+        ctx.lineTo(-bw, -bh + r);
+        ctx.quadraticCurveTo(-bw, -bh, -bw + r, -bh);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = deep;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // ventanas
+        ctx.fillStyle = '#d8f2ee';
+        [-28, -46, -60].forEach(wx => {
+          ctx.beginPath();
+          ctx.roundRect(wx, -bh + 8, 13, 10, 3);
+          ctx.fill();
+        });
+
+        // ruedas
+        [-16, -52].forEach(wx => {
+          ctx.beginPath();
+          ctx.arc(wx, 0, 6, 0, Math.PI * 2);
+          ctx.fillStyle = '#26363d';
+          ctx.fill();
+          ctx.strokeStyle = '#dbe3df';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+
+        ctx.restore();
+      }
+
+      /* =======================================================
+         Dibujo: gráfica x(t)
+         ======================================================= */
+      function drawGraph() {
+        const p = S.p, D = S.D;
+        const { ctx, w, h } = ensureSize(els.graph);
+        if (!ctx) return;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.fillStyle = C.panel;
+        ctx.fillRect(0, 0, w, h);
+
+        const mL = w < 400 ? 42 : 52;
+        const mR = 16, mT = 18, mB = 30;
+        const x0 = mL, x1 = w - mR, y0 = h - mB, y1 = mT;
+        const T = Math.max(D.duration, 0.001);
+        // Recorrido máximo representado: hasta donde llegue el tren más alejado
+        const { xB: xBend } = (() => {
+          const th = T * D.hps;
+          return { xB: p.mode === 'headOn' ? Math.max(p.D - p.vB * th, 0) : p.D + p.vB * th };
+        })();
+        const Xmax = Math.max(p.D, p.vA * T * D.hps, xBend, D.xMeet || 0) * 1.06;
+
+        const X = t => x0 + (t / T) * (x1 - x0);
+        const Y = xKm => y0 - (xKm / Xmax) * (y0 - y1);
+
+        // Rejilla
+        const yStep = niceStep(Xmax, 5);
+        ctx.strokeStyle = C.grid;
+        ctx.lineWidth = 1;
+        for (let y = 0; y <= Xmax + 1e-9; y += yStep) {
+          const py = Y(y);
+          if (py < y1 - 0.5 || py > y0 + 0.5) continue;
+          if (y > 1e-9) {
+            ctx.beginPath();
+            ctx.moveTo(x0, py);
+            ctx.lineTo(x1, py);
+            ctx.stroke();
+          }
+        }
+        for (let i = 1; i < 4; i++) {
+          const xx = x0 + (i / 4) * (x1 - x0);
+          ctx.beginPath();
+          ctx.moveTo(xx, y1);
+          ctx.lineTo(xx, y0);
+          ctx.stroke();
+        }
+
+        // Ejes
+        ctx.strokeStyle = C.axis;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x0, y0);
+        ctx.lineTo(x1, y0);
+        ctx.stroke();
+
+        // Ticks eje Y (km)
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let y = 0; y <= Xmax + 1e-9; y += yStep) {
+          const py = Y(y);
+          if (py < y1 - 0.5 || py > y0 + 0.5) continue;
+          ctx.strokeStyle = C.axis;
+          ctx.beginPath();
+          ctx.moveTo(x0 - 4, py);
+          ctx.lineTo(x0, py);
+          ctx.stroke();
+          ctx.fillStyle = C.gridLabel;
+          ctx.fillText(fmtTick(y), x0 - 6, py);
+        }
+        ctx.fillStyle = C.muted;
+        ctx.font = '700 9px "DM Sans", sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('km', x0 - 4, y1 - 2);
+
+        // Ticks eje X (s)
+        ctx.fillStyle = C.gridLabel;
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('0', x0, y0 + 5);
+        ctx.fillText(T.toFixed(1) + ' s', x1, y0 + 5);
+        for (let i = 0; i <= 4; i++) {
+          const xx = x0 + (i / 4) * (x1 - x0);
+          ctx.strokeStyle = C.axis;
+          ctx.beginPath();
+          ctx.moveTo(xx, y0);
+          ctx.lineTo(xx, y0 + 4);
+          ctx.stroke();
+        }
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = C.muted;
+        ctx.font = '700 9px "DM Sans", sans-serif';
+        ctx.fillText('t', x1 + 4, y0 + 4);
+
+        // Leyenda
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.font = '700 10px "DM Sans", sans-serif';
+        ctx.fillStyle = C.a;
+        ctx.fillText('● A', x0 + 7, y1 + 4);
+        ctx.fillStyle = C.b;
+        ctx.fillText('● B', x0 + 38, y1 + 4);
+
+        // Rectas x(t)
+        plotLine(ctx, t => p.vA * t * D.hps, T, X, Y, C.a);
+        plotLine(ctx, t => p.mode === 'headOn'
+          ? p.D - p.vB * t * D.hps
+          : p.D + p.vB * t * D.hps, T, X, Y, C.b);
+
+        // Punto de encuentro
+        if (D.canMeet) {
+          const mx = X(D.tMeet / D.hps), my = Y(D.xMeet);
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = 'rgba(217,154,31,.55)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(mx, my); ctx.lineTo(mx, y0); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(mx, my); ctx.lineTo(x0, my); ctx.stroke();
+          ctx.setLineDash([]);
+
+          const halo = ctx.createRadialGradient(mx, my, 0, mx, my, 12);
+          halo.addColorStop(0, 'rgba(244,185,66,.55)');
+          halo.addColorStop(1, 'rgba(244,185,66,0)');
+          ctx.fillStyle = halo;
+          ctx.beginPath(); ctx.arc(mx, my, 12, 0, Math.PI * 2); ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(mx, my, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = C.gold;
+          ctx.fill();
+          ctx.strokeStyle = C.ink;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+
+        // Cursor temporal
+        const cx = X(Math.min(S.t, T));
+        ctx.setLineDash([3, 4]);
+        ctx.strokeStyle = 'rgba(23,33,43,.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, y1); ctx.lineTo(cx, y0); ctx.stroke();
+        ctx.setLineDash([]);
+
+        const { xA, xB } = positions();
+        dot(ctx, cx, Y(Math.max(0, xA)), C.a);
+        dot(ctx, cx, Y(Math.max(0, xB)), C.b);
+      }
+
+      function plotLine(ctx, fn, tMax, X, Y, color) {
+        const t0 = 0, t1 = tMax;
+        ctx.beginPath();
+        ctx.moveTo(X(t0), Y(Math.max(0, fn(t0))));
+        ctx.lineTo(X(t1), Y(Math.max(0, fn(t1))));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      function dot(ctx, x, y, color) {
+        ctx.beginPath();
+        ctx.arc(x, y, 3.6, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
+
+      /* =======================================================
+         Render + resultados
+         ======================================================= */
+      function render() {
+        if (!S.p) return;
+        drawScene();
+        drawGraph();
+        updateLiveStats();
+      }
+
+      function updateLiveStats() {
+        const { xA, xB, th } = positions();
+        els.rNow.textContent = fmt(S.t, 2) + ' s';
+        els.rXA.textContent = fmt(Math.max(0, xA)) + ' km';
+        els.rXB.textContent = fmt(Math.max(0, xB)) + ' km';
+        els.rDist.textContent = fmt(Math.abs(xB - xA)) + ' km';
+      }
+
+      function updateResults() {
+        const D = S.D, p = S.p;
+        els.rRel.textContent = D.canMeet ? fmt(D.relative, 1) + ' km/h' : '0 km/h';
+
+        if (D.canMeet) {
+          els.rTime.textContent = formatHours(D.tMeet);
+          els.rPoint.textContent = fmt(D.xMeet) + ' km';
+          els.insight.textContent = p.mode === 'headOn'
+            ? 'Cuando los trenes viajan uno hacia el otro, sus velocidades se suman: ' + p.vA + ' + ' + p.vB + ' = ' + fmt(D.relative, 1) + ' km/h. El encuentro llegará en ' + formatHours(D.tMeet) + ', a ' + fmt(D.xMeet) + ' km de la salida del tren A.'
+            : 'En una persecución importa la diferencia de velocidades: ' + p.vA + ' − ' + p.vB + ' = ' + fmt(D.relative, 1) + ' km/h. El tren A alcanzará al tren B en ' + formatHours(D.tMeet) + ', a ' + fmt(D.xMeet) + ' km de su salida.';
+        } else {
+          els.rTime.textContent = '—';
+          els.rPoint.textContent = '—';
+          els.insight.textContent = 'El tren A debe ser más rápido que el tren B para alcanzarlo: con vA = ' + p.vA + ' y vB = ' + p.vB + ' la distancia no se cierra. Ajusta las velocidades y vuelve a intentarlo.';
+        }
+        updateLiveStats();
+      }
+
+      /* =======================================================
+         Botones de reproducción
+         ======================================================= */
+      function updatePlayBtn() {
+        const finished = S.t >= S.D.duration - 1e-9;
+        if (S.playing) {
+          els.play.disabled = false;
+          els.play.querySelector('span').textContent = 'Pausar';
+        } else if (finished) {
+          els.play.disabled = true;
+          els.play.querySelector('span').textContent = 'Finalizada';
+        } else if (S.t > 0) {
+          els.play.disabled = false;
+          els.play.querySelector('span').textContent = 'Reanudar';
+        } else {
+          els.play.disabled = false;
+          els.play.querySelector('span').textContent = 'Iniciar';
+        }
+        const pillState = S.playing ? 'running'
+          : finished ? (S.D.canMeet ? 'met' : 'noMeet')
+          : (S.t > 0 ? 'paused' : 'ready');
+        setPill(pillState);
+        els.reset.disabled = !finished;
+        els.step.disabled = finished;
+        els.stepBack.disabled = S.t <= 1e-9;
+      }
+
+      function stepSim(dir) {
+        if (dir > 0 && S.t >= S.D.duration - 1e-9) return;
+        if (dir < 0 && S.t <= 1e-9) return;
+        stop();
+        S.t = Math.min(Math.max(S.t + dir * STEP_DT, 0), S.D.duration);
+        render();
+        updatePlayBtn();
+      }
+
+      function stop() {
+        S.playing = false;
+        S.last = null;
+        if (S.raf) { cancelAnimationFrame(S.raf); S.raf = null; }
+        updatePlayBtn();
+      }
+
+      function resetSim(keepPlaying) {
+        stop();
+        S.t = 0;
+        updatePlayBtn();
+        if (keepPlaying) start();
+        else render();
+      }
+
+      function start() {
+        if (S.playing) return;
+        if (S.t >= S.D.duration - 1e-6) S.t = 0;
+        S.playing = true;
+        S.last = null;
+        updatePlayBtn();
+        S.raf = requestAnimationFrame(loop);
+      }
+
+      function loop(ts) {
+        if (!S.playing) return;
+        if (S.last === null) S.last = ts;
+        let dt = (ts - S.last) / 1000;
+        S.last = ts;
+        if (!isFinite(dt) || dt < 0) dt = 0;
+        dt = Math.min(dt, 0.05);
+        S.t += dt * S.speed;
+        if (S.t >= S.D.duration - 1e-9) {
+          S.t = S.D.duration;
+          S.playing = false;
+          S.last = null;
+          updatePlayBtn();
+          render();
+          return;
+        }
+        render();
+        S.raf = requestAnimationFrame(loop);
+      }
+
+      /* =======================================================
+         Etiquetas y modo
+         ======================================================= */
+      function updateLabels() {
+        const p = readParams();
+        els.distanceValue.textContent = p.D + ' km';
+        els.speedAValue.textContent = p.vA + ' km/h';
+        els.speedBValue.textContent = p.vB + ' km/h';
+        els.playSpeedValue.textContent = S.speed.toFixed(2).replace(/0$/, '').replace(/\.$/, '') + '×';
+        [els.distance, els.speedA, els.speedB, els.playSpeed].forEach(setRangeProgress);
+      }
+
+      function applyMode() {
+        els.headOnMode.classList.toggle('active', S.mode === 'headOn');
+        els.chaseMode.classList.toggle('active', S.mode === 'chase');
+        els.headOnMode.setAttribute('aria-pressed', String(S.mode === 'headOn'));
+        els.chaseMode.setAttribute('aria-pressed', String(S.mode === 'chase'));
+      }
+
+      function recompute() {
+        S.p = readParams();
+        S.D = derive(S.p);
+        updateResults();
+      }
+
+      function changeMode(m) {
+        if (m === S.mode) return;
+        stop();
+        S.t = 0;
+        S.mode = m;
+        applyMode();
+        recompute();
+        render();
+        updatePlayBtn();
+      }
+
+      /* =======================================================
+         Eventos
+         ======================================================= */
+      els.headOnMode.addEventListener('click', () => changeMode('headOn'));
+      els.chaseMode.addEventListener('click', () => changeMode('chase'));
+
+      ['distance', 'speedA', 'speedB'].forEach(id => {
+        els[id].addEventListener('input', () => {
+          stop();
+          S.t = 0;
+          updateLabels();
+          recompute();
+          render();
+          updatePlayBtn();
+        });
+      });
+
+      els.playSpeed.addEventListener('input', () => {
+        S.speed = parseFloat(els.playSpeed.value);
+        updateLabels();
+      });
+
+      els.play.addEventListener('click', () => {
+        if (S.playing) { stop(); render(); }
+        else start();
+      });
+      els.step.addEventListener('click', () => stepSim(1));
+      els.stepBack.addEventListener('click', () => stepSim(-1));
+      els.reset.addEventListener('click', () => resetSim(true));
+
+      if ('ResizeObserver' in window) {
+        const ro = new ResizeObserver(() => render());
+        ro.observe(els.scene);
+        ro.observe(els.graph);
+      } else {
+        window.addEventListener('resize', () => render());
+      }
+      window.addEventListener('orientationchange', () => setTimeout(render, 120));
+
+      /* =======================================================
+         Modal de ayuda
+         ======================================================= */
+      const helpBtn = $('helpBtn');
+      const helpModal = $('helpModal');
+      const modalClose = $('modalClose');
+      const modalBackdrop = $('modalBackdrop');
+
+      function openModal() {
+        helpModal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        modalClose.focus();
+      }
+      function closeModal() {
+        helpModal.hidden = true;
+        document.body.style.overflow = '';
+        helpBtn.focus();
+      }
+      helpBtn.addEventListener('click', openModal);
+      modalClose.addEventListener('click', closeModal);
+      modalBackdrop.addEventListener('click', closeModal);
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !helpModal.hidden) closeModal();
+      });
+
+      /* =======================================================
+         Atajos de teclado
+         ======================================================= */
+      window.addEventListener('keydown', e => {
+        const t = e.target;
+        const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+                             t.tagName === 'SELECT' || t.isContentEditable);
+        if (typing) return;
+        if (e.key === 'h' || e.key === 'H') {
+          e.preventDefault();
+          if (helpModal.hidden) openModal(); else closeModal();
+          return;
+        }
+        if (!helpModal.hidden) return;
+
+        if (e.code === 'Space' || e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          if (S.playing) { stop(); render(); }
+          else if (!els.play.disabled) start();
+        } else if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          if (!els.step.disabled) stepSim(1);
+        } else if (e.key === 'd' || e.key === 'D') {
+          e.preventDefault();
+          if (!els.stepBack.disabled) stepSim(-1);
+        } else if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (!els.reset.disabled) resetSim(true);
+        }
+      });
+
+      /* =======================================================
+         Chip de versión
+         ----------------------------------------------------------------
+         Extrae APP_VERSION de sw.js y la muestra junto al título.
+         1) Si hay un SW activo, se le pregunta por postMessage.
+         2) Si no, se hace fetch del texto de sw.js y se parsea.
+         3) Si todo falla, el chip queda en estado de error.
+         ======================================================= */
+      function setChipVersion(version, isError) {
+        const chip = $('verChip');
+        if (!chip) return;
+        chip.classList.remove('loading', 'error');
+        if (isError) {
+          chip.classList.add('error');
+          chip.textContent = '?';
+          chip.title = 'No se pudo leer la versión del service worker';
+          return;
+        }
+        chip.textContent = 'v' + version;
+        chip.title = 'Versión del service worker: trenes-pwa-' + version;
+      }
+
+      function loadVersionFromSWText() {
+        const swUrl = new URL('sw.js', document.baseURI).href;
+        fetch(swUrl, { cache: 'no-cache' })
+          .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+          })
+          .then(txt => {
+            const m = txt.match(/APP_VERSION\s*=\s*['"`]([^'"`]+)['"`]/);
+            if (!m) throw new Error('APP_VERSION no encontrada');
+            setChipVersion(m[1], false);
+          })
+          .catch(() => {
+            const chip = $('verChip');
+            // No sobreescribir una versión ya recibida por postMessage.
+            if (chip && !chip.classList.contains('error') && chip.textContent && chip.textContent !== '…') {
+              return;
+            }
+            setChipVersion(null, true);
+          });
+      }
+
+      function loadChipVersion() {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const channel = new MessageChannel();
+          let answered = false;
+          const timer = setTimeout(() => {
+            if (!answered) loadVersionFromSWText();
+          }, 600);
+          channel.port1.onmessage = (e) => {
+            answered = true;
+            clearTimeout(timer);
+            if (e.data && e.data.type === 'APP_VERSION' && e.data.version) {
+              setChipVersion(e.data.version, false);
+            } else {
+              loadVersionFromSWText();
+            }
+          };
+          try {
+            navigator.serviceWorker.controller.postMessage('GET_VERSION', [channel.port2]);
+          } catch {
+            answered = true;
+            clearTimeout(timer);
+            loadVersionFromSWText();
+          }
+        } else {
+          loadVersionFromSWText();
+        }
+      }
+
+      /* =======================================================
+         PWA · registro del service worker + actualizaciones
+         ----------------------------------------------------------------
+         El SW vive en /trenes/sw.js y su ámbito por defecto es /trenes/,
+         por lo que NO interfiere con el SW del portal https://tecdea.github.io
+         ======================================================= */
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js')
+            .then(reg => {
+              reg.addEventListener('updatefound', () => {
+                const nw = reg.installing;
+                if (!nw) return;
+                nw.addEventListener('statechange', () => {
+                  if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                    $('swToast').hidden = false;
+                  }
+                });
+              });
+            })
+            .catch(err => console.warn('Registro del SW falló:', err));
+        });
+
+        $('swReload').addEventListener('click', () => {
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage('SKIP_WAITING');
+          }
+          setTimeout(() => window.location.reload(), 400);
+        });
+      }
+
+      /* =======================================================
+         Arranque
+         ======================================================= */
+      applyMode();
+      updateLabels();
+      recompute();
+      S.t = 0;
+      updatePlayBtn();
+      render();
+      loadChipVersion();
+    });
+  </script>
+</body>
+</html>
