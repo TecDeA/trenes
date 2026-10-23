@@ -676,7 +676,10 @@
           duration = Math.max(4, Math.min(12, (p.D / p.vA) * 3));
           hps = (p.D / p.vA) / duration;
         }
-        return { relative, canMeet, tMeet, xMeet, duration, hps };
+        // Extremo de la animación: el encuentro (ambos trenes en xMeet)
+        // o, si no lo hay, hasta dónde llega a escaparse el tren B.
+        const xEnd = canMeet ? xMeet : p.D + p.vB * duration * hps;
+        return { relative, canMeet, tMeet, xMeet, xEnd, duration, hps };
       }
 
       // Posiciones en km en el instante S.t (segundos de simulación)
@@ -723,10 +726,22 @@
         const mL = w < 430 ? 40 : 54;
         const mR = 24, mT = 42, mB = 74;
         const trackY = h - mB + 26;
-        // El mundo representado debe incluir el punto de encuentro:
-        // en una persecución puede quedar más allá de la distancia inicial.
-        const worldTop = D.canMeet ? D.xMeet * 1.04 : p.D * 1.06;
-        const scale = (w - mL - mR) / worldTop;   // px por km
+        const availPx = w - mL - mR;
+        // El mundo representado debe incluir el punto de encuentro (que en
+        // una persecución puede quedar más allá de la distancia inicial) y
+        // el cuerpo completo de ambos trenes durante toda la animación.
+        const worldBase = Math.max(D.xEnd * 1.02, p.D * 1.02);
+        let scale = availPx / worldBase;          // px por km
+        let trainW = 48;
+        let worldTop = worldBase;
+        // Dos pasadas: el tamaño del tren (proporcional al hueco inicial)
+        // determina el margen extra, que a su vez cambia la escala.
+        for (let i = 0; i < 2; i++) {
+          const gapPx = p.D * scale;
+          trainW = Math.max(24, Math.min(72, gapPx * 0.35));
+          worldTop = worldBase + (trainW + 16) / scale;
+          scale = availPx / worldTop;
+        }
         const X = xKm => mL + xKm * scale;
 
         // Suelo
@@ -831,9 +846,7 @@
           ctx.stroke();
         });
 
-        // Trenes (delante de la vía); tamaño proporcional a la escena
-        const gapPx = p.D * scale;
-        const trainW = Math.max(26, Math.min(72, gapPx * 0.35));
+        // Trenes (delante de la vía); tamaño calculado arriba
         const dirB = p.mode === 'headOn' ? -1 : 1;
         drawTrain(ctx, X(xA), trackY + 2, 1, C.a, C.aDeep, S.playing, trainW);
         drawTrain(ctx, X(xB), trackY + 2, dirB, C.b, C.bDeep, S.playing, trainW);
