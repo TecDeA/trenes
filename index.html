@@ -35,15 +35,24 @@
 
     * { box-sizing: border-box; }
 
+    html { -webkit-text-size-adjust: 100%; }
+
     body {
       margin: 0;
       font-family: "DM Sans", sans-serif;
       color: var(--ink);
       overflow-x: hidden;
+      /* Áreas seguras en iOS/Android en modo pantalla completa */
+      padding:
+        env(safe-area-inset-top, 0)
+        env(safe-area-inset-right, 0)
+        env(safe-area-inset-bottom, 0)
+        env(safe-area-inset-left, 0);
     }
 
     .app-shell {
-      min-height: calc(100 * min(var(--vh, 1vh), 1vh));
+      min-height: 100vh;
+      min-height: 100dvh; /* navegadores móviles con barras dinámicas */
       width: 100%;
       background:
         radial-gradient(circle at 8% 10%, rgba(244, 185, 66, .25), transparent 28rem),
@@ -104,6 +113,21 @@
       box-shadow: 0 2px 8px rgba(23,33,43,.3);
     }
 
+    /* Objetivos táctiles más generosos en pantallas táctiles */
+    @media (pointer: coarse) {
+      .range-input::-webkit-slider-thumb {
+        width: 26px;
+        height: 26px;
+      }
+      .range-input::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
+      }
+      .range-input { height: 12px; }
+    }
+
+    button, input[type="range"] { touch-action: manipulation; }
+
     /* ---------- Canvas de la simulación ---------- */
     .sim-canvas {
       display: block;
@@ -112,6 +136,27 @@
     }
     #scene { height: clamp(300px, 42vh, 460px); }
     #graph { height: clamp(170px, 24vh, 240px); }
+
+    /* En pantallas anchas (lg/xl), las dos tarjetas de canvas llenan la
+       columna izquierda para que ambas columnas queden a la misma
+       altura que las tarjetas de parámetros y resultados. */
+    @media (min-width: 1024px) {
+      .sim-col { display: flex !important; flex-direction: column; }
+      .sim-col .has-canvas { display: flex; flex-direction: column; }
+      #sceneCard { flex: 1.6 1 0; min-height: 0; }
+      #graphCard { flex: 1 1 0; min-height: 0; }
+      .has-canvas .canvas-body {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+      }
+      .has-canvas canvas {
+        flex: 1 1 0;
+        height: auto !important;
+      }
+      #scene { min-height: 320px; }
+      #graph { min-height: 180px; }
+    }
 
     /* ---------- Filas de datos ---------- */
     .stat-row {
@@ -311,6 +356,13 @@
     @media (max-width: 640px) {
       #scene { height: 280px; }
       #graph { height: 190px; }
+      .stat-row { font-size: 13px; padding: 7px 10px; }
+      .modal-body { padding: 16px; font-size: 13.5px; }
+      .toast { flex-direction: column; gap: 8px; text-align: center; }
+    }
+
+    @media (max-width: 380px) {
+      .stat-row .k { font-size: 12px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -331,12 +383,12 @@
        <p class="text-xs" style="color: rgb(88, 112, 125);">Laboratorio visual</p>
       </div>
      </div>
-     <div class="hidden items-center gap-2 sm:flex">
+     <div class="flex items-center gap-2">
       <div class="hidden items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold md:flex" style="background: rgb(23, 33, 43); color: rgb(247, 243, 233);">
        <i data-lucide="atom" aria-hidden="true" class="h-4 w-4"></i> <span style="color: rgb(247, 243, 233);">Movimiento relativo</span>
       </div>
       <button type="button" id="helpBtn" class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5" style="background: rgb(244, 185, 66); color: rgb(23, 33, 43);" aria-haspopup="dialog" aria-controls="helpModal">
-       <i data-lucide="circle-help" aria-hidden="true" class="h-4 w-4"></i> Ayuda
+       <i data-lucide="circle-help" aria-hidden="true" class="h-4 w-4"></i> <span class="hidden sm:inline">Ayuda</span>
       </button>
      </div>
     </div>
@@ -345,15 +397,15 @@
     <section class="mx-auto max-w-7xl">
      <div class="mb-7 max-w-3xl reveal">
       <p class="mb-3 text-sm font-bold uppercase tracking-[0.17em]" style="color: rgb(17, 100, 102);">EXPERIMENTO INTERACTIVO</p>
-      <h1 class="display-font max-w-3xl leading-[1.04]" style="color: rgb(23, 33, 43); font-weight: 700; font-size: 32px;">¿Cuándo se encontrarán los trenes?</h1>
+      <h1 class="display-font max-w-3xl leading-[1.04]" style="color: rgb(23, 33, 43); font-weight: 700; font-size: clamp(26px, 5vw, 32px);">¿Cuándo se encontrarán los trenes?</h1>
       <p class="mt-4 max-w-2xl text-lg leading-relaxed" style="color: rgb(88, 112, 125);">Elige un encuentro frontal o una persecución, ajusta la distancia y las velocidades, y descubre paso a paso cómo se resuelven los problemas clásicos de trenes.</p>
      </div>
 
-     <div class="grid gap-7 xl:grid-cols-[minmax(0,1fr)_390px]">
+     <div class="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_390px]">
 
       <!-- ======== Columna principal: escena + gráfica ======== -->
-      <div class="grid gap-5 content-start reveal" style="animation-delay:.08s">
-       <div class="overflow-hidden rounded-[30px] border border-[#b9c9c2] bg-white shadow-[0_20px_50px_rgba(23,33,43,.12)]">
+      <div class="sim-col grid gap-5 content-start reveal" style="animation-delay:.08s">
+       <div id="sceneCard" class="has-canvas overflow-hidden rounded-[30px] border border-[#b9c9c2] bg-white shadow-[0_20px_50px_rgba(23,33,43,.12)]">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#c6d5d0] bg-[#eff5ef] px-5 py-4">
          <div class="flex items-center gap-3">
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-[#116466] text-white"> <i data-lucide="map" aria-hidden="true" class="h-4 w-4"></i> </span>
@@ -364,12 +416,12 @@
          </div>
          <span id="status" class="rounded-full px-3 py-1.5 text-sm font-semibold" style="background: rgb(224, 232, 227); color: rgb(65, 85, 93);">Listo para salir</span>
         </div>
-        <div class="p-4 sm:p-5" style="background: linear-gradient(180deg, #cde9ec 0%, #e9f4e8 100%);">
+        <div class="canvas-body p-4 sm:p-5" style="background: linear-gradient(180deg, #cde9ec 0%, #e9f4e8 100%);">
          <canvas id="scene" class="sim-canvas rounded-2xl border border-[#b9c9c2] shadow-inner" aria-label="Simulación espacial del encuentro de trenes"></canvas>
         </div>
        </div>
 
-       <div class="overflow-hidden rounded-[30px] border border-[#b9c9c2] bg-white shadow-[0_20px_50px_rgba(23,33,43,.12)]">
+       <div id="graphCard" class="has-canvas overflow-hidden rounded-[30px] border border-[#b9c9c2] bg-white shadow-[0_20px_50px_rgba(23,33,43,.12)]">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#c6d5d0] bg-[#eff5ef] px-5 py-4">
          <div class="flex items-center gap-3">
           <span class="flex h-9 w-9 items-center justify-center rounded-full bg-[#be8716] text-white"> <i data-lucide="chart-line" aria-hidden="true" class="h-4 w-4"></i> </span>
@@ -379,7 +431,7 @@
           </div>
          </div>
         </div>
-        <div class="p-4 sm:p-5" style="background: #fbfcf8;">
+        <div class="canvas-body p-4 sm:p-5" style="background: #fbfcf8;">
          <canvas id="graph" class="sim-canvas rounded-2xl border border-[#e3ded0]" aria-label="Gráfica de posición frente a tiempo"></canvas>
         </div>
        </div>
@@ -744,12 +796,61 @@
         }
         const X = xKm => mL + xKm * scale;
 
+        // Sol con halo
+        const sunR = Math.max(24, Math.min(44, w * 0.035));
+        const sunX = w * 0.87, sunY = mT + 12 + sunR;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunR + 11, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(248,202,85,.20)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+        ctx.fillStyle = '#f8ca55';
+        ctx.fill();
+
+        // Nubes
+        ctx.fillStyle = 'rgba(255,255,255,.8)';
+        const cloud = (cx, cy, s) => {
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, 34 * s, 12 * s, 0, 0, Math.PI * 2);
+          ctx.ellipse(cx - 19 * s, cy + 4 * s, 20 * s, 9 * s, 0, 0, Math.PI * 2);
+          ctx.ellipse(cx + 21 * s, cy + 5 * s, 22 * s, 9 * s, 0, 0, Math.PI * 2);
+          ctx.fill();
+        };
+        cloud(w * 0.16, mT + Math.max(34, h * 0.10), 1);
+        cloud(w * 0.55, mT + Math.max(20, h * 0.05), 0.8);
+        cloud(w * 0.74, mT + Math.max(56, h * 0.16), 0.65);
+
         // Suelo
         const gg = ctx.createLinearGradient(0, trackY + 14, 0, h);
         gg.addColorStop(0, C.grass);
         gg.addColorStop(1, C.soil);
         ctx.fillStyle = gg;
         ctx.fillRect(0, trackY + 14, w, h - trackY - 14);
+
+        // Montañas sobre el horizonte (detrás de la vía)
+        const horizon = trackY + 16;
+        const mh = Math.min(h * 0.30, 190);
+        if (mh > 34) {
+          const drawRange = (color, amp, offset, step) => {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(-40, horizon);
+            for (let px = -40; px <= w + 80; px += step) {
+              const peak = horizon - amp * (0.55 + 0.45 * Math.abs(Math.sin((px + offset) * 0.013)));
+              ctx.lineTo(px, peak);
+              ctx.lineTo(px + step / 2, horizon);
+            }
+            ctx.lineTo(w + 80, horizon);
+            ctx.closePath();
+            ctx.fill();
+          };
+          ctx.globalAlpha = .40;
+          drawRange('#638e7d', mh, 0, 250);
+          ctx.globalAlpha = .55;
+          drawRange('#7ca78f', mh * 0.7, 140, 195);
+          ctx.globalAlpha = 1;
+        }
 
         // Regla en kilómetros
         const step = niceStep(worldTop, 7);

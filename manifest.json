@@ -6,6 +6,7 @@
   "scope": "/trenes/",
   "start_url": "/trenes/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "lang": "es",
   "background_color": "#f7f3e9",
