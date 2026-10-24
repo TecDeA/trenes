@@ -499,7 +499,7 @@
          <div class="stat-row"><span class="k">Velocidad relativa</span><span class="v" id="rRel">—</span></div>
 
          <div class="section-label">Estado actual <span style="font-weight:600;color:#37a06a">· en vivo</span></div>
-         <div class="stat-row live"><span class="k"><span class="dot"></span>Tiempo de simulación</span><span class="v" id="rNow">0.00 s</span></div>
+         <div class="stat-row live"><span class="k"><span class="dot"></span>Tiempo de simulación</span><span class="v" id="rNow">0.00 h</span></div>
          <div class="stat-row a live"><span class="k">Posición del tren A</span><span class="v" id="rXA">—</span></div>
          <div class="stat-row b live"><span class="k">Posición del tren B</span><span class="v" id="rXB">—</span></div>
          <div class="stat-row live"><span class="k">Distancia entre trenes</span><span class="v" id="rDist">—</span></div>
@@ -546,14 +546,14 @@
      <h3>Controles de reproducción</h3>
      <ul>
       <li><strong>Iniciar / Pausar / Reanudar:</strong> controla la animación. El botón <em>Reiniciar</em> se activa al finalizar.</li>
-      <li><strong>Paso adelante / Paso atrás:</strong> avanza o retrocede en incrementos fijos de 0,1 s, pausando la reproducción.</li>
+      <li><strong>Paso adelante / Paso atrás:</strong> avanza o retrocede en incrementos fijos de 0,1 h (6 minutos), pausando la reproducción.</li>
       <li><strong>Velocidad de reproducción:</strong> multiplica el tiempo simulado para revisar con calma o acelerar (0,25× a 3×).</li>
      </ul>
 
      <h3>Teclas</h3>
      <ul>
       <li><kbd>Espacio</kbd> o <kbd>S</kbd>: inicia, pausa o reanuda.</li>
-      <li><kbd>F</kbd>: paso adelante de 0,1 s. <kbd>D</kbd>: paso atrás.</li>
+      <li><kbd>F</kbd>: paso adelante de 0,1 h. <kbd>D</kbd>: paso atrás.</li>
       <li><kbd>R</kbd>: reinicia y reanuda automáticamente (al finalizar).</li>
       <li><kbd>H</kbd>: abre o cierra esta ayuda.</li>
      </ul>
@@ -610,7 +610,7 @@
          ======================================================= */
       const S = {
         mode: 'headOn',       // 'headOn' | 'chase'
-        t: 0,                 // tiempo de simulación en segundos
+        t: 0,                 // tiempo de simulación en HORAS (coherente con km/h)
         playing: false,
         speed: 1,             // multiplicador de reproducción
         last: null,
@@ -618,7 +618,7 @@
         p: null,              // parámetros leídos
         D: null               // derivados (encuentro, duración…)
       };
-      const STEP_DT = 0.1;
+      const STEP_DT = 0.1;    // horas por paso (6 minutos)
 
       /* Paleta de los canvas (misma de la app) */
       const C = {
@@ -731,12 +731,15 @@
         // Extremo de la animación: el encuentro (ambos trenes en xMeet)
         // o, si no lo hay, hasta dónde llega a escaparse el tren B.
         const xEnd = canMeet ? xMeet : p.D + p.vB * duration * hps;
-        return { relative, canMeet, tMeet, xMeet, xEnd, duration, hps };
+        // Duración de la simulación en HORAS (la animación avanza el reloj
+        // a hps horas por segundo real, para que dure siempre lo justo).
+        const durationH = duration * hps;
+        return { relative, canMeet, tMeet, xMeet, xEnd, duration: durationH, durationAnim: duration, hps };
       }
 
-      // Posiciones en km en el instante S.t (segundos de simulación)
+      // Posiciones en km en el instante S.t (HORAS de simulación)
       function positions() {
-        const p = S.p, th = S.t * S.D.hps;
+        const p = S.p, th = S.t;
         const xA = p.vA * th;
         const xB = p.mode === 'headOn' ? p.D - p.vB * th : p.D + p.vB * th;
         return { xA, xB, th };
@@ -1046,13 +1049,10 @@
         const mL = w < 400 ? 42 : 52;
         const mR = 16, mT = 18, mB = 30;
         const x0 = mL, x1 = w - mR, y0 = h - mB, y1 = mT;
-        const T = Math.max(D.duration, 0.001);
+        const T = Math.max(D.duration, 0.001);   // horas
         // Recorrido máximo representado: hasta donde llegue el tren más alejado
-        const { xB: xBend } = (() => {
-          const th = T * D.hps;
-          return { xB: p.mode === 'headOn' ? Math.max(p.D - p.vB * th, 0) : p.D + p.vB * th };
-        })();
-        const Xmax = Math.max(p.D, p.vA * T * D.hps, xBend, D.xMeet || 0) * 1.06;
+        const xBend = p.mode === 'headOn' ? Math.max(p.D - p.vB * T, 0) : p.D + p.vB * T;
+        const Xmax = Math.max(p.D, p.vA * T, xBend, D.xMeet || 0) * 1.06;
 
         const X = t => x0 + (t / T) * (x1 - x0);
         const Y = xKm => y0 - (xKm / Xmax) * (y0 - y1);
@@ -1115,7 +1115,7 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         ctx.fillText('0', x0, y0 + 5);
-        ctx.fillText(T.toFixed(1) + ' s', x1, y0 + 5);
+        ctx.fillText((T >= 10 ? T.toFixed(1) : T.toFixed(2)) + ' h', x1, y0 + 5);
         for (let i = 0; i <= 4; i++) {
           const xx = x0 + (i / 4) * (x1 - x0);
           ctx.strokeStyle = C.axis;
@@ -1139,15 +1139,15 @@
         ctx.fillStyle = C.b;
         ctx.fillText('● B', x0 + 38, y1 + 4);
 
-        // Rectas x(t)
-        plotLine(ctx, t => p.vA * t * D.hps, T, X, Y, C.a);
+        // Rectas x(t) — t en horas, coherente con las velocidades en km/h
+        plotLine(ctx, t => p.vA * t, T, X, Y, C.a);
         plotLine(ctx, t => p.mode === 'headOn'
-          ? p.D - p.vB * t * D.hps
-          : p.D + p.vB * t * D.hps, T, X, Y, C.b);
+          ? p.D - p.vB * t
+          : p.D + p.vB * t, T, X, Y, C.b);
 
         // Punto de encuentro
         if (D.canMeet) {
-          const mx = X(D.tMeet / D.hps), my = Y(D.xMeet);
+          const mx = X(D.tMeet), my = Y(D.xMeet);
           ctx.setLineDash([4, 4]);
           ctx.strokeStyle = 'rgba(217,154,31,.55)';
           ctx.lineWidth = 1;
@@ -1219,8 +1219,8 @@
       }
 
       function updateLiveStats() {
-        const { xA, xB, th } = positions();
-        els.rNow.textContent = fmt(S.t, 2) + ' s';
+        const { xA, xB } = positions();
+        els.rNow.textContent = fmt(S.t) + ' h';
         els.rXA.textContent = fmt(Math.max(0, xA)) + ' km';
         els.rXB.textContent = fmt(Math.max(0, xB)) + ' km';
         els.rDist.textContent = fmt(Math.abs(xB - xA)) + ' km';
@@ -1307,11 +1307,11 @@
       function loop(ts) {
         if (!S.playing) return;
         if (S.last === null) S.last = ts;
-        let dt = (ts - S.last) / 1000;
+        let dt = (ts - S.last) / 1000;   // segundos reales
         S.last = ts;
         if (!isFinite(dt) || dt < 0) dt = 0;
         dt = Math.min(dt, 0.05);
-        S.t += dt * S.speed;
+        S.t += dt * S.speed * S.D.hps;   // el reloj avanza en horas
         if (S.t >= S.D.duration - 1e-9) {
           S.t = S.D.duration;
           S.playing = false;
