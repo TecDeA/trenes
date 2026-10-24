@@ -365,6 +365,16 @@
       .stat-row .k { font-size: 12px; }
     }
 
+    /* Móvil y tablet vertical: los controles se intercalan entre la escena
+       y la gráfica, para accionar los pasos con el gráfico a la vista. */
+    @media (max-width: 1023px) {
+      .sim-col, .ctrl-col { display: contents !important; }
+      #sceneCard   { order: 1; }
+      #paramsCard  { order: 2; }
+      #graphCard   { order: 3; }
+      #resultsCard { order: 4; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; animation: none !important; }
     }
@@ -438,9 +448,9 @@
       </div>
 
       <!-- ======== Columna lateral: parámetros + resultados ======== -->
-      <div class="grid gap-5 content-start reveal" style="animation-delay:.16s">
+      <div class="ctrl-col grid gap-5 content-start reveal" style="animation-delay:.16s">
 
-       <aside class="control-card paper-grain rounded-[28px] border border-[#d9d5c8] p-5 sm:p-6">
+       <aside id="paramsCard" class="control-card paper-grain rounded-[28px] border border-[#d9d5c8] p-5 sm:p-6">
         <div class="mb-5 flex items-center justify-between">
          <h2 class="font-bold" style="color: rgb(23, 33, 43); font-size: 20px;">Configura el problema</h2><i data-lucide="sliders-horizontal" aria-hidden="true" class="h-5 w-5 text-[#116466]"></i>
         </div>
@@ -487,7 +497,7 @@
         </div>
        </aside>
 
-       <aside class="control-card paper-grain rounded-[28px] border border-[#d9d5c8] p-5 sm:p-6">
+       <aside id="resultsCard" class="control-card paper-grain rounded-[28px] border border-[#d9d5c8] p-5 sm:p-6">
         <div class="mb-4 flex items-center justify-between">
          <h2 class="font-bold" style="color: rgb(23, 33, 43); font-size: 20px;">Resultados</h2><i data-lucide="clipboard-list" aria-hidden="true" class="h-5 w-5 text-[#116466]"></i>
         </div>

@@ -8,7 +8,7 @@
    ------------------------------------------------------------------ */
 'use strict';
 
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.1.4';
 const CACHE_NAME = `trenes-pwa-${APP_VERSION}`;
 
 /* Precachea el esqueleto de la app (rutas relativas a /trenes/). */
