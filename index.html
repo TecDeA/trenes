@@ -128,6 +128,26 @@
 
     button, input[type="range"] { touch-action: manipulation; }
 
+    /* Botones de acción del panel de control */
+    .action-btn { padding: 12px 16px; font-size: 15px; }
+    .action-btn span { font-size: 15px; }
+
+    /* Móvil: panel de control más compacto para dejar sitio a la simulación */
+    @media (max-width: 640px) {
+      .action-btn { padding: 7px 6px; font-size: 13px; border-radius: 9px; }
+      .action-btn span { font-size: 12.5px; }
+      .action-btn svg, .action-btn i { width: 14px; height: 14px; }
+      #paramsCard { padding: 14px; }
+      #paramsCard .mode-choice { padding: 9px 11px !important; }
+      #paramsCard .mode-choice .mt-1 { margin-top: 2px; }
+      #paramsCard .mode-choice span.block { font-size: 14px; }
+      #paramsCard .mode-choice span.mt-1 { font-size: 12px; }
+      #paramsCard .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 14px; }
+      #paramsCard .my-6 { margin-top: 14px; margin-bottom: 14px; }
+      #paramsCard .mt-7 { margin-top: 14px; }
+      #paramsCard .grid.grid-cols-2 { gap: 8px; }
+    }
+
     /* ---------- Canvas de la simulación ---------- */
     .sim-canvas {
       display: block;
@@ -365,12 +385,12 @@
       .stat-row .k { font-size: 12px; }
     }
 
-    /* Móvil y tablet vertical: los controles se intercalan entre la escena
-       y la gráfica, para accionar los pasos con el gráfico a la vista. */
+    /* Móvil y tablet vertical: los controles van por delante de la
+       simulación, y la gráfica y los resultados a continuación. */
     @media (max-width: 1023px) {
       .sim-col, .ctrl-col { display: contents !important; }
-      #sceneCard   { order: 1; }
-      #paramsCard  { order: 2; }
+      #paramsCard  { order: 1; }
+      #sceneCard   { order: 2; }
       #graphCard   { order: 3; }
       #resultsCard { order: 4; }
     }
@@ -490,10 +510,10 @@
         </div>
 
         <div class="mt-7 grid grid-cols-2 gap-3">
-         <button id="playButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold shadow-md transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#116466]/25" style="background: rgb(17, 100, 102); color: rgb(255, 255, 255);"> <i data-lucide="play" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(255, 255, 255); font-size: 15px;">Iniciar</span> </button>
-         <button id="resetButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#17212b]/15 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <i data-lucide="rotate-ccw" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(23, 33, 43); font-size: 15px;">Reiniciar</span> </button>
-         <button id="stepBackButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <i data-lucide="chevron-left" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(23, 33, 43); font-size: 15px;">Paso atrás</span> </button>
-         <button id="stepButton" type="button" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <span style="color: rgb(23, 33, 43); font-size: 15px;">Paso adelante</span><i data-lucide="chevron-right" aria-hidden="true" class="h-4 w-4"></i> </button>
+         <button id="playButton" type="button" class="action-btn flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold shadow-md transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#116466]/25" style="background: rgb(17, 100, 102); color: rgb(255, 255, 255);"> <i data-lucide="play" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(255, 255, 255);">Iniciar</span> </button>
+         <button id="resetButton" type="button" class="action-btn flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#17212b]/15 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <i data-lucide="rotate-ccw" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(23, 33, 43);">Reiniciar</span> </button>
+         <button id="stepBackButton" type="button" class="action-btn flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <i data-lucide="chevron-left" aria-hidden="true" class="h-4 w-4"></i><span style="color: rgb(23, 33, 43);">Paso atrás</span> </button>
+         <button id="stepButton" type="button" class="action-btn flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style="background: rgb(231, 235, 229); color: rgb(23, 33, 43);"> <span style="color: rgb(23, 33, 43);">Paso adelante</span><i data-lucide="chevron-right" aria-hidden="true" class="h-4 w-4"></i> </button>
         </div>
        </aside>
 
